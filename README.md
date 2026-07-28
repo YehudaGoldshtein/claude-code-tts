@@ -18,7 +18,7 @@ How it works:
 ## Install
 
 ```powershell
-git clone <this-repo> "$env:USERPROFILE\.claude\tts"
+git clone https://github.com/YehudaGoldshtein/claude-code-tts "$env:USERPROFILE\.claude\tts"
 cd "$env:USERPROFILE\.claude\tts"
 powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
 ```
