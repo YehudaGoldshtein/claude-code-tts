@@ -64,12 +64,16 @@ All scripts fall back to these defaults when `.env` is absent.
 - `/tts` — toggle voice on/off
 - `/tts status` — show state and detail level
 - `/tts level 1|2|3` — one-liner / medium digest / full response
+- `/tts replay` — replay the last spoken clip (cached to `last.wav`, so it
+  works even after the server restarts)
+- `/tts read <path>` — read a file's contents aloud, markdown stripped
+  (capped at 6000 characters); the clip becomes replayable
 - The server starts on demand; first synthesis after a cold start takes a few
   seconds while the model loads (CPU inference).
 
 ## Files
 
-- `server.py` — local HTTP server wrapping kokoro-onnx (`/speak`, `/stop`, `/health`)
+- `server.py` — local HTTP server wrapping kokoro-onnx (`/speak`, `/stop`, `/replay`, `/health`)
 - `claude-tts-hook.ps1` — Claude Code hook (modes: `warm`, `speak`, `stop`)
 - `voice.ps1` — CLI behind the `/tts` command
 - `install.ps1` — one-shot idempotent installer

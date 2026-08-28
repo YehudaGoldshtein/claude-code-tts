@@ -12,3 +12,7 @@ __pycache__/
 # runtime state written by voice.ps1 / the hook
 voice.off
 voice.level
+
+# cached audio of the last spoken clip — used by /tts replay
+last.wav
+install.log

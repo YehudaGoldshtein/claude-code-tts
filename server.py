@@ -4,18 +4,23 @@ Keeps the Kokoro ONNX model warm and plays synthesized speech locally.
 Endpoints:
   POST /speak  {"text": "...", "voice": "af_heart", "speed": 1.0}
   POST /stop   - stop current playback immediately
+  POST /replay - replay the most recently spoken clip
   GET  /health - liveness check
 """
 
 import json
 import threading
+import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import numpy as np
 import sounddevice as sd
 from kokoro_onnx import Kokoro
 
 DIR = Path(__file__).parent
+# Last synthesized clip persisted to disk so /replay survives a server restart
+CACHE_WAV = DIR / "last.wav"
 
 
 def _load_dotenv(path: Path) -> dict:
@@ -42,12 +47,63 @@ print("Model loaded.")
 
 play_lock = threading.Lock()
 
+# Cache the most recently synthesized audio so /replay can re-play it instantly
+# without re-running inference. Kept in memory and mirrored to CACHE_WAV on disk
+# so replay works even after the server restarts. Holds (samples, sample_rate).
+last_audio = None
+last_audio_lock = threading.Lock()
+
+
+def _write_wav(path: Path, samples, sample_rate: int) -> None:
+    """Persist float samples (-1..1) as a 16-bit mono WAV."""
+    pcm = np.clip(np.asarray(samples), -1.0, 1.0)
+    pcm = (pcm * 32767.0).astype("<i2")
+    with wave.open(str(path), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(int(sample_rate))
+        wf.writeframes(pcm.tobytes())
+
+
+def _read_wav(path: Path):
+    """Load a 16-bit mono WAV back into (float samples, sample_rate)."""
+    with wave.open(str(path), "rb") as wf:
+        sample_rate = wf.getframerate()
+        frames = wf.readframes(wf.getnframes())
+    samples = np.frombuffer(frames, dtype="<i2").astype("float32") / 32767.0
+    return samples, sample_rate
+
 
 def speak(text: str, voice: str, speed: float) -> None:
+    global last_audio
     samples, sample_rate = kokoro.create(text, voice=voice, speed=speed, lang="en-us")
+    with last_audio_lock:
+        last_audio = (samples, sample_rate)
+    try:
+        _write_wav(CACHE_WAV, samples, sample_rate)
+    except Exception:  # noqa: BLE001 - disk cache is best-effort
+        pass
     with play_lock:
         sd.stop()
         sd.play(samples, sample_rate)
+
+
+def replay() -> bool:
+    """Re-play the last clip from memory, or from disk after a restart."""
+    with last_audio_lock:
+        cached = last_audio
+    if cached is None and CACHE_WAV.exists():
+        try:
+            cached = _read_wav(CACHE_WAV)
+        except Exception:  # noqa: BLE001
+            cached = None
+    if cached is None:
+        return False
+    samples, sample_rate = cached
+    with play_lock:
+        sd.stop()
+        sd.play(samples, sample_rate)
+    return True
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -69,6 +125,12 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/stop":
             sd.stop()
             self._respond(200, {"status": "stopped"})
+            return
+        if self.path == "/replay":
+            if replay():
+                self._respond(200, {"status": "replaying"})
+            else:
+                self._respond(404, {"error": "nothing cached to replay"})
             return
         if self.path != "/speak":
             self._respond(404, {"error": "not found"})

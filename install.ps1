@@ -63,7 +63,7 @@ New-Item -ItemType Directory -Force $commandsDir | Out-Null
 $voicePs1 = Join-Path $TtsDir 'voice.ps1'
 $ttsMd = @'
 ---
-description: Control spoken summaries (usage: /tts, /tts on|off|status, /tts level 1|2|3) — note /voice is Claude Code's built-in voice-input mode
+description: Control spoken summaries (usage: /tts, /tts on|off|status, /tts level 1|2|3, /tts replay, /tts read <path>) — note /voice is Claude Code's built-in voice-input mode
 allowed-tools: Bash(powershell *), PowerShell
 ---
 
@@ -73,6 +73,8 @@ Control the local Kokoro voice-summary system. Parse the user's argument(s): `$A
 - `on` / `off` / `status` → pass as `-State <value>`
 - `level` → pass `-State level`
 - `level <1|2|3>` → pass `-State level -Value <n>`  (1 = one-liner, 2 = medium ~8-sentence digest, 3 = full response read aloud)
+- `replay` → pass `-State replay`  (replays the last spoken clip)
+- `read <path>` → pass `-State read -Value "<path>"`  (reads a file aloud, markdown stripped; quote the path)
 
 ```
 powershell -NoProfile -ExecutionPolicy Bypass -File "__VOICE_PS1__" <mapped parameters>

@@ -2,8 +2,10 @@
 # Usage: voice on | voice off | voice (toggles) | voice status
 #        voice level        (show current detail level)
 #        voice level 1|2|3  (1 = one-liner, 2 = medium digest, 3 = full response)
+#        voice replay       (replay the last spoken clip)
+#        voice read <path>  (read a file's contents aloud, markdown stripped)
 param(
-    [ValidateSet('on', 'off', 'toggle', 'status', 'level')][string]$State = 'toggle',
+    [ValidateSet('on', 'off', 'toggle', 'status', 'level', 'replay', 'read')][string]$State = 'toggle',
     [string]$Value
 )
 
@@ -40,6 +42,19 @@ function Speak($text) {
     } catch {}
 }
 
+# strip markdown so file contents read naturally as speech (mirrors the hook)
+function Clean-ForSpeech([string]$t) {
+    $t = $t -replace '(?s)```.*?```', ' (code omitted) '
+    $t = $t -replace '`([^`]*)`', '$1'
+    $t = $t -replace '\[([^\]]*)\]\([^)]*\)', '$1'        # markdown links -> their text
+    $t = $t -replace '(?m)^\s*\|.*\|\s*$', ''             # table rows
+    $t = $t -replace '(?m)^#{1,6}\s*', ''                 # headers
+    $t = $t -replace '(?m)^\s*[-*+]\s+', ''               # bullets
+    $t = $t -replace '\*\*([^*]+)\*\*', '$1' -replace '\*([^*]+)\*', '$1'
+    $t = $t -replace 'https?://\S+', 'link'
+    return ($t -replace '\s{2,}', ' ').Trim()
+}
+
 $isOff = Test-Path $Flag
 if ($State -eq 'toggle') { $State = if ($isOff) { 'on' } else { 'off' } }
 
@@ -66,5 +81,27 @@ switch ($State) {
         New-Item -ItemType File -Path $Flag -Force | Out-Null
         try { Invoke-RestMethod -Uri "$BaseUrl/stop" -Method Post -TimeoutSec 2 | Out-Null } catch {}
         'Voice: OFF'
+    }
+    'replay' {
+        try {
+            $r = Invoke-RestMethod -Uri "$BaseUrl/replay" -Method Post -TimeoutSec 5
+            if ($r.status -eq 'replaying') { 'Replaying last clip.' } else { 'Nothing to replay yet.' }
+        } catch {
+            'Nothing to replay yet.'
+        }
+    }
+    'read' {
+        if (-not $Value) { 'Usage: voice read <path-to-file>'; break }
+        if ($isOff) { 'Voice is OFF — turn it on first with: voice on'; break }
+        $path = $Value.Trim('"')
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { "File not found: $path"; break }
+        $raw = Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue
+        if (-not $raw -or -not $raw.Trim()) { "File is empty: $path"; break }
+        $text = Clean-ForSpeech $raw
+        $truncated = $false
+        if ($text.Length -gt 6000) { $text = $text.Substring(0, 6000); $truncated = $true }
+        Speak $text
+        $name = Split-Path -Leaf $path
+        if ($truncated) { "Reading $name (truncated to 6000 characters)." } else { "Reading $name." }
     }
 }
