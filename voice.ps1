@@ -37,8 +37,11 @@ function Get-Level {
 }
 function Speak($text) {
     try {
-        $body = @{ text = $text } | ConvertTo-Json
-        Invoke-RestMethod -Uri "$BaseUrl/speak" -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 3 | Out-Null
+        # send UTF-8 bytes so multi-byte chars (emoji, em-dash, accents) survive —
+        # a string body lets Content-Length disagree with the actual byte count
+        $json  = @{ text = $text } | ConvertTo-Json
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+        Invoke-RestMethod -Uri "$BaseUrl/speak" -Method Post -Body $bytes -ContentType 'application/json; charset=utf-8' -TimeoutSec 3 | Out-Null
     } catch {}
 }
 

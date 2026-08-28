@@ -33,9 +33,9 @@ if (-not (Test-Path $venvPython)) {
     Write-Host "Creating virtualenv with $python ..."
     Invoke-Expression "$python -m venv `"$TtsDir\.venv`""
 }
-Write-Host 'Installing Python packages (kokoro-onnx, sounddevice) ...'
+Write-Host 'Installing Python packages (kokoro-onnx) ...'
 & $venvPython -m pip install --quiet --upgrade pip
-& $venvPython -m pip install --quiet kokoro-onnx sounddevice
+& $venvPython -m pip install --quiet kokoro-onnx
 if ($LASTEXITCODE -ne 0) { Write-Host 'ERROR: pip install failed.' -ForegroundColor Red; exit 1 }
 
 # --- 2. Model files -----------------------------------------------------------

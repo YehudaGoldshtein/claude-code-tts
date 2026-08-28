@@ -9,11 +9,20 @@ How it works:
 1. A snippet in your global `CLAUDE.md` asks Claude to end every response with
    a one-line spoken summary marked by a 🔊 emoji.
 2. A `Stop` hook extracts that line from the transcript and POSTs it to a tiny
-   local HTTP server (`server.py`) that keeps the Kokoro model warm and plays
-   the audio. A `SessionStart` hook pre-warms the server; a `UserPromptSubmit`
-   hook cuts off playback the moment you send a new message.
+   local HTTP server (`server.py`) that keeps the Kokoro model warm, synthesizes
+   the audio to a WAV, and opens it in a media player (VLC → Windows Media
+   Player → OS default) so you get pause / seek / stop controls. A
+   `SessionStart` hook pre-warms the server; a `UserPromptSubmit` hook cuts off
+   playback the moment you send a new message.
 3. The `/tts` slash command toggles the voice and sets the detail level
    (1 = one-liner, 2 = ~8-sentence digest, 3 = the full response read aloud).
+
+The server is a **single shared instance**: it binds `127.0.0.1:8880` and any
+duplicate exits immediately, so every Claude Code session talks to the same
+server. All `/speak` requests funnel through **one worker queue**, so concurrent
+sessions never synthesize at once or overlap audio — each finished clip replaces
+the player window. Activity is logged to `logs/server.log` (rotating, 512 KB ×
+4 files).
 
 ## Install
 

@@ -122,9 +122,11 @@ switch ($Mode) {
         if (-not $summary) { exit 0 }
 
         if (-not (Start-Server)) { exit 0 }
-        $body = @{ text = $summary } | ConvertTo-Json
+        # send UTF-8 bytes so multi-byte chars (em-dash, accents, emoji) survive
+        $json  = @{ text = $summary } | ConvertTo-Json
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
         try {
-            Invoke-RestMethod -Uri "$BaseUrl/speak" -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 10 | Out-Null
+            Invoke-RestMethod -Uri "$BaseUrl/speak" -Method Post -Body $bytes -ContentType 'application/json; charset=utf-8' -TimeoutSec 10 | Out-Null
         } catch {}
         exit 0
     }

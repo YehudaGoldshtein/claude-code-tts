@@ -16,3 +16,7 @@ voice.level
 # cached audio of the last spoken clip — used by /tts replay
 last.wav
 install.log
+
+# rotating server logs
+logs/
+server-debug.log*
